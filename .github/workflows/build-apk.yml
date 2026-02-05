@@ -1,0 +1,96 @@
+name: Build APK
+
+# 触发条件
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # 允许手动触发
+
+# 构建任务
+jobs:
+  build:
+    name: 构建Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出代码
+      - name: 📥 检出代码
+        uses: actions/checkout@v3
+
+      # 设置JDK环境
+      - name: ☕ 设置JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: gradle
+
+      # 授予gradlew执行权限
+      - name: 🔐 授予执行权限
+        run: chmod +x gradlew
+
+      # 清理之前的构建
+      - name: 🧹 清理项目
+        run: ./gradlew clean
+
+      # 构建Debug APK
+      - name: 🔨 构建Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      # 检查APK是否生成
+      - name: ✅ 检查构建产物
+        run: |
+          ls -lh app/build/outputs/apk/debug/
+
+      # 上传APK作为artifacts
+      - name: 📦 上传Debug APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # 生成构建信息
+      - name: 📊 生成构建信息
+        run: |
+          echo "## 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建时间**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **APK大小**: $(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)" >> $GITHUB_STEP_SUMMARY
+
+  # Release构建（可选）
+  build-release:
+    name: 构建Release APK
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'  # 仅手动触发
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v3
+
+      - name: ☕ 设置JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: 🔐 授予执行权限
+        run: chmod +x gradlew
+
+      - name: 🔨 构建Release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: ✅ 检查构建产物
+        run: |
+          ls -lh app/build/outputs/apk/release/
+
+      - name: 📦 上传Release APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 30
